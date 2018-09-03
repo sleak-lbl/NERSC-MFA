@@ -85,14 +85,13 @@ Usage () {
 	if [[ $# -ne 0 ]]; then
 		printf "$progname: %s\n\n", "$*"
 	fi
-	printf "Usage: $progname [-u <user>] [-s <scope>] [-o <filename>] [-l] [-U <server URL>] [-k <API key>]\n"
+	printf "Usage: $progname [-u <user>] [-s <scope>] [-o <filename>] [-U <server URL>] [-k <API key>]\n"
 	printf "\n"
 	printf "\t -u <user>\tSpecify remote username (default: $user)\n"
 	printf "\t -s <scope>\tSpecify scope (default: '$scope')\n"
 	printf "\t -o <filename>\tSpecify pathname for private key (default: $sshdir/$id)\n"
-	printf "\t -l 'legacy' -- support legacy authentication (to be implemented)\n"
-	printf "\t -U <URL>\tspecify alternate URL for sshproxy server\n"
-	printf "\t -k <API key>\tuse API key for authentication\n"
+	printf "\t -U <URL>\tSpecify alternate URL for sshproxy server\n"
+	printf "\t -k <API key>\tUse API key for authentication\n"
 	printf "\n"
 	
 	exit 0
@@ -111,7 +110,6 @@ trap Abort int kill term hup pipe abrt
 # for command-line arguments.  In reality, not all of these get used,
 # but here for completeness
 opt_scope=''	# -s
-opt_legacy=''	# -l
 opt_key=''	# -k
 opt_url=''	# -U
 opt_user=''	# -u
@@ -119,15 +117,11 @@ opt_out=''	# -o
 
 # Process getopts.  See Usage() above for description of arguments
 
-while getopts "hls:k:U:u:o:" opt; do
+while getopts "hs:k:U:u:o:" opt; do
 	case ${opt} in
 
 		h )
 			Usage
-		;;
-
-		l )
-			opt_legacy=1
 		;;
 
 		s )
@@ -233,8 +227,11 @@ if [[ $? -ne 0 ]]; then
 fi
 
 # And give the user some feedback
-printf "Successfully obtained ssh key %s" "$idfile"
+printf "Successfully obtained ssh key %s\n" "$idfile"
 
-printf "Key is "
+# A few shenanigans to clean up line formatting
 valid=`ssh-keygen -L -f $certfile | grep Valid`
-printf "%s\n" "$valid"
+shopt -s extglob
+valid=${valid/+( )/}
+valid=${valid/Valid/valid}
+printf "Key is %s\n" "$valid"
