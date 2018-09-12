@@ -86,7 +86,7 @@ Usage () {
 	if [[ $# -ne 0 ]]; then
 		printf "$progname: %s\n\n", "$*"
 	fi
-	printf "Usage: $progname [-u <user>] [-s <scope>] [-o <filename>] [-U <server URL>]\n"
+	printf "Usage: $progname [-u <user>] [-o <filename>] [-s <scope>] [-U <server URL>]\n"
 	printf "\n"
 	printf "\t -u <user>\tSpecify remote username (default: $user)\n"
 	printf "\t -o <filename>\tSpecify pathname for private key (default: $sshdir/$id)\n"
