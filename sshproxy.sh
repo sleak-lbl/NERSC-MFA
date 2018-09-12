@@ -89,6 +89,7 @@ Usage () {
 	printf "Usage: $progname [-u <user>] [-s <scope>] [-o <filename>] [-U <server URL>]\n"
 	printf "\n"
 	printf "\t -u <user>\tSpecify remote username (default: $user)\n"
+	printf "\t -o <filename>\tSpecify pathname for private key (default: $sshdir/$id)\n"
 	printf "\t -s <scope>\tSpecify scope (default: '$scope')\n"
 	printf "\t -U <URL>\tSpecify alternate URL for sshproxy server (generally only used for testing purposes)\n"
 	printf "\n"
