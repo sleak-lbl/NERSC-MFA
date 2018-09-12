@@ -4,6 +4,9 @@
 
 progname=`basename $0`
 
+# Save tty state for trap function below
+original_tty_state=$(stty -g)
+
 tmpkey=''
 tmpcert=''
 pw=''
@@ -46,12 +49,10 @@ Bail () {
 
 	Error "$@"
 
-	#  If interrupted during password prompt, reset terminal
-	#  Otherwise user ends up with terminal in no-echo mode.
+	# restore terminal to original state, in case we're interrupted
+	# while reading password
 
-	if [[ "$INPWPROMPT" != "" ]]; then
-		reset
-	fi
+	stty $original_tty_state
 
 	# Go bye-bye
 	exit $exitcode
@@ -85,13 +86,11 @@ Usage () {
 	if [[ $# -ne 0 ]]; then
 		printf "$progname: %s\n\n", "$*"
 	fi
-	printf "Usage: $progname [-u <user>] [-s <scope>] [-o <filename>] [-U <server URL>] [-k <API key>]\n"
+	printf "Usage: $progname [-u <user>] [-s <scope>] [-o <filename>] [-U <server URL>]\n"
 	printf "\n"
 	printf "\t -u <user>\tSpecify remote username (default: $user)\n"
 	printf "\t -s <scope>\tSpecify scope (default: '$scope')\n"
-	printf "\t -o <filename>\tSpecify pathname for private key (default: $sshdir/$id)\n"
-	printf "\t -U <URL>\tSpecify alternate URL for sshproxy server\n"
-	printf "\t -k <API key>\tUse API key for authentication\n"
+	printf "\t -U <URL>\tSpecify alternate URL for sshproxy server (generally only used for testing purposes)\n"
 	printf "\n"
 	
 	exit 0
@@ -110,7 +109,6 @@ trap Abort int kill term hup pipe abrt
 # for command-line arguments.  In reality, not all of these get used,
 # but here for completeness
 opt_scope=''	# -s
-opt_key=''	# -k
 opt_url=''	# -U
 opt_user=''	# -u
 opt_out=''	# -o
@@ -127,10 +125,6 @@ while getopts "hs:k:U:u:o:" opt; do
 		s )
 			opt_scope=$OPTARG
 			scope=$opt_scope
-		;;
-
-		k )
-			opt_key=$OPTARG
 		;;
 
 		U )
@@ -172,7 +166,12 @@ certfile="$idfile-cert.pub"
 
 # Have user enter password+OTP.  Curl can do this, but does not
 # provide any control over the prompt
-INPWPROMPT=yes read -p "Enter your password+OTP: " -s pw
+#
+# N.B. INPWPROMPT variable is used in Bail() above for when password
+# prompt is interrupted by ctrl-c.  Otherwise terminal gets left in
+# a weird state.
+
+read -p "Enter your password+OTP: " -s pw
 
 # read -p doesn't output a newline after entry
 printf "\n"
