@@ -1,14 +1,37 @@
 #!/bin/bash
 
-# Need some descriptive text, copyright and license
+# Copyright 2018 Regents of the University of California
 
-progname=`basename $0`
+#
+# NOTICE.  This software was developed under funding from the U.S.
+# Department of Energy and the U.S. Government consequently retains
+# certain rights. As such, the U.S. Government has been granted for
+# itself and others acting on its behalf a paid-up, nonexclusive,
+# irrevocable, worldwide license in the software to reproduce,
+# distribute copies to the public, prepare derivative works, and
+# perform publicly and display publicly, and to permit other to do
+# so.
+
+# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+# OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL BERKELEY LAB OR THE U.S. GOVERNMENT BE LIABLE FOR
+# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+# IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+progname=$(basename $0)
 
 # Save tty state for trap function below
 original_tty_state=$(stty -g)
 
 tmpkey=''
 tmpcert=''
+tmppub=''
 pw=''
 
 # Default values
@@ -64,7 +87,7 @@ Bail () {
 # Cleans up temp files on exit
 
 Cleanup () {
-	for f in "$tmpkey" "$tmpcert"
+	for f in "$tmpkey" "$tmpcert" "$tmppub"
 	do
 		if [[ "$f" != "" && -e "$f" ]]; then
 			/bin/rm -f "$f"
@@ -88,9 +111,10 @@ Usage () {
 	fi
 	printf "Usage: $progname [-u <user>] [-o <filename>] [-s <scope>] [-U <server URL>]\n"
 	printf "\n"
-	printf "\t -u <user>\tSpecify remote username (default: $user)\n"
+	printf "\t -u <user>\tSpecify remote (NERSC) username (default: $user)\n"
 	printf "\t -o <filename>\tSpecify pathname for private key (default: $sshdir/$id)\n"
 	printf "\t -s <scope>\tSpecify scope (default: '$scope')\n"
+	printf "\t -a \tAdd key to ssh-agent (with expiration)\n"
 	printf "\t -U <URL>\tSpecify alternate URL for sshproxy server (generally only used for testing purposes)\n"
 	printf "\n"
 	
@@ -113,10 +137,11 @@ opt_scope=''	# -s
 opt_url=''	# -U
 opt_user=''	# -u
 opt_out=''	# -o
+opt_agent=0	# -a
 
 # Process getopts.  See Usage() above for description of arguments
 
-while getopts "hs:k:U:u:o:" opt; do
+while getopts "ahs:k:U:u:o:" opt; do
 	case ${opt} in
 
 		h )
@@ -138,6 +163,9 @@ while getopts "hs:k:U:u:o:" opt; do
 
 		o )
 			opt_out=$OPTARG
+		;;
+		a )
+			opt_agent=1
 		;;
 
 		\? )
@@ -164,6 +192,7 @@ else
 fi
 
 certfile="$idfile-cert.pub"
+pubfile="$idfile.pub"
 
 # Have user enter password+OTP.  Curl can do this, but does not
 # provide any control over the prompt
@@ -180,10 +209,11 @@ printf "\n"
 # Make temp files.  We want them in the same target directory as the
 # final keys
 
-tmpdir=`dirname $idfile`
+tmpdir=$(dirname $idfile)
 tmpdir="$tmpdir"
 tmpkey="$(mktemp $tmpdir/key.XXXXXX)"
 tmpcert="$(mktemp $tmpdir/cert.XXXXXX)"
+tmppub="$(mktemp $tmpdir/pub.XXXXXX)"
 
 # And get the key/cert
 curl -s -S -X POST https://$url/create_pair/$scope/ \
@@ -218,20 +248,47 @@ fi
 # Extract the cert into its own file, and move into place
 
 grep ssh-rsa $tmpkey > $tmpcert \
+	&& ssh-keygen -y -f $tmpkey > $tmppub \
 	&& chmod 600 $tmpkey* \
 	&& /bin/mv $tmpkey $idfile \
+	&& /bin/mv $tmppub $pubfile \
 	&& /bin/mv $tmpcert $certfile
 
 if [[ $? -ne 0 ]]; then
 	Bail 4 "An error occured after successfully downloading keys (!!!)"
 fi
 
-# And give the user some feedback
-printf "Successfully obtained ssh key %s\n" "$idfile"
-
 # A few shenanigans to clean up line formatting
-valid=`ssh-keygen -L -f $certfile | grep Valid`
+valid=$(ssh-keygen -L -f $certfile | grep Valid)
 shopt -s extglob
 valid=${valid/+( )/}
 valid=${valid/Valid/valid}
-printf "Key is %s\n" "$valid"
+
+
+if [[ $opt_agent -ne 0 ]]; then
+	# extract expiration date from "valid" line (above)
+	expiry=${valid/valid*to /}
+
+	# Convert the date to epoch
+	expepoch=$(date -j -f '%FT%T' $expiry +%s)
+
+	# get current epoch time
+	epoch=$(date -j +%s)
+
+	# compute the interval between expiration and now
+	# (minus one second just to be sure)
+	interval=$(( $expepoch - $epoch - 1 ))
+
+	# add the interval to ssh-agent
+	if [[ $interval -gt 0 ]]; then
+		ssh-add -t $interval $idfile
+	else
+		Error "cert $certfile is either expired or otherwise invalid. Expiration read as: $expiry"
+	fi
+
+fi
+
+# And give the user some feedback
+printf "Successfully obtained ssh key %s\n" "$idfile"
+
+printf "Key $idfile is %s\n" "$valid"
