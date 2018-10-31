@@ -269,18 +269,40 @@ if [[ $opt_agent -ne 0 ]]; then
 	# extract expiration date from "valid" line (above)
 	expiry=${valid/valid*to /}
 
-	# Convert the date to epoch
-	expepoch=$(date -j -f '%FT%T' $expiry +%s)
+	distro=$(uname)
+	dateError=0
 
-	# get current epoch time
-	epoch=$(date -j +%s)
+	case $distro in
+		Darwin|*BSD*)
+			# Convert the date to epoch
+			expepoch=$(date -j -f '%FT%T' $expiry +%s)
+
+			# get current epoch time
+			epoch=$(date -j +%s)
+		;;
+
+		Linux|GNU)
+			# Convert the date to epoch
+			expepoch=$(date -d $expiry +%s)
+
+			# get current epoch time
+			epoch=$(date +%s)
+		;;
+
+		*)
+			Error "Unrecognized OS; I don't know how to convert a date to epoch time"
+			dateError=1
+		;;
+	esac
 
 	# compute the interval between expiration and now
 	# (minus one second just to be sure)
 	interval=$(( $expepoch - $epoch - 1 ))
 
 	# add the interval to ssh-agent
-	if [[ $interval -gt 0 ]]; then
+	if [[ $dateError -gt 0 ]]; then
+		Error "Can't add key to ssh-agent."
+	elif [[ $interval -gt 0 ]]; then
 		ssh-add -t $interval $idfile
 	else
 		Error "cert $certfile is either expired or otherwise invalid. Expiration read as: $expiry"
