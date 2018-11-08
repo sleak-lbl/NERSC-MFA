@@ -109,7 +109,7 @@ Usage () {
 	if [[ $# -ne 0 ]]; then
 		printf "$progname: %s\n\n", "$*"
 	fi
-	printf "Usage: $progname [-u <user>] [-o <filename>] [-s <scope>] [-U <server URL>]\n"
+	printf "Usage: $progname [-u <user>] [-o <filename>] [-s <scope>] [-a] [-U <server URL>]\n"
 	printf "\n"
 	printf "\t -u <user>\tSpecify remote (NERSC) username (default: $user)\n"
 	printf "\t -o <filename>\tSpecify pathname for private key (default: $sshdir/$id)\n"
@@ -281,7 +281,7 @@ if [[ $opt_agent -ne 0 ]]; then
 			epoch=$(date -j +%s)
 		;;
 
-		Linux|GNU)
+		Linux|GNU|CYGWIN*)
 			# Convert the date to epoch
 			expepoch=$(date -d $expiry +%s)
 
