@@ -215,8 +215,9 @@ tmpkey="$(mktemp $tmpdir/key.XXXXXX)"
 tmpcert="$(mktemp $tmpdir/cert.XXXXXX)"
 tmppub="$(mktemp $tmpdir/pub.XXXXXX)"
 
+siteproxy=${PROXYROOT:+--socks5 $PROXYROOT:${PROXYPORT:-1080}}
 # And get the key/cert
-curl -s -S -X POST https://$url/create_pair/$scope/ \
+curl -s -S $siteproxy -X POST https://$url/create_pair/$scope/ \
 	-o $tmpkey -K - <<< "-u $user:$pw"
 
 # Check for error
